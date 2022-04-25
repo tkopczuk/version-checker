@@ -10,6 +10,11 @@ import (
 	"github.com/jetstack/version-checker/pkg/api"
 )
 
+type Options struct {
+	Architecture string
+	OS           string 
+}
+
 // Builder is a struct for building container search options
 type Builder struct {
 	ans map[string]string
@@ -24,16 +29,20 @@ func New(annotations map[string]string) *Builder {
 
 // Options will build the tag options based on pod annotations and container
 // name.
-func (b *Builder) Options(name string) (*api.Options, error) {
+func (b *Builder) Options(name string, controllerOpts Options) (*api.Options, error) {
 	var (
 		opts      api.Options
 		errs      []string
 		setNonSha bool
 	)
 
+	opts.Architecture = &controllerOpts.Architecture
+	opts.OS = &controllerOpts.OS
+
 	if useSHA, ok := b.ans[b.index(name, api.UseSHAAnnotationKey)]; ok && useSHA == "true" {
 		opts.UseSHA = true
 	}
+
 
 	if useMetaData, ok := b.ans[b.index(name, api.UseMetaDataAnnotationKey)]; ok && useMetaData == "true" {
 		setNonSha = true

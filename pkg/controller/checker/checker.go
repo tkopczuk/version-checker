@@ -22,6 +22,8 @@ type Result struct {
 	LatestVersion  string
 	IsLatest       bool
 	ImageURL       string
+	OS             string
+ 	Architecture   string
 }
 
 func New(search search.Searcher) *Checker {
@@ -33,7 +35,6 @@ func New(search search.Searcher) *Checker {
 // Container will return the result of the given container's current version, compared to the latest upstream
 func (c *Checker) Container(ctx context.Context, log *logrus.Entry,
 	pod *corev1.Pod, container *corev1.Container, opts *api.Options) (*Result, error) {
-
 	// If the container image SHA status is not ready yet, exit early
 	statusSHA := containerStatusImageSHA(pod, container.Name)
 	if len(statusSHA) == 0 {
@@ -90,6 +91,8 @@ func (c *Checker) Container(ctx context.Context, log *logrus.Entry,
 		LatestVersion:  latestVersion,
 		IsLatest:       isLatest,
 		ImageURL:       imageURL,
+		OS:             latestImage.OS,
+		Architecture:   latestImage.Architecture,
 	}, nil
 }
 
@@ -161,6 +164,8 @@ func (c *Checker) isLatestSHA(ctx context.Context, imageURL, currentSHA string, 
 		LatestVersion:  latestVersion,
 		IsLatest:       isLatest,
 		ImageURL:       imageURL,
+		OS:             latestImage.OS,
+		Architecture:   latestImage.Architecture,
 	}, nil
 }
 

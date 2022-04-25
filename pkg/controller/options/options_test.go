@@ -10,13 +10,18 @@ import (
 
 func TestBuild(t *testing.T) {
 	tests := map[string]struct {
-		containerName string
-		annotations   map[string]string
-		expOptions    *api.Options
-		expErr        string
+		containerName  string
+		controllerOpts Options
+		annotations    map[string]string
+		expOptions     *api.Options
+		expErr         string
 	}{
 		"if annotations not using the same name, ignore": {
 			containerName: "test-name",
+			controllerOpts: Options{
+				Architecture: "amd64",
+				OS: "linux",
+			},
 			annotations: map[string]string{
 				api.PinPatchAnnotationKey + "/test-name-foo":    "foo",
 				api.PinMinorAnnotationKey + "/test-name-foo":    "foo",
@@ -25,11 +30,18 @@ func TestBuild(t *testing.T) {
 				api.UseMetaDataAnnotationKey + "/test-name-foo": "foo",
 				api.OverrideURLAnnotationKey + "/test-name-foo": "foo",
 			},
-			expOptions: new(api.Options),
+			expOptions:&api.Options{
+				Architecture: stringp("amd64"),
+				OS: stringp("linux"),	
+			},
 			expErr:     "",
 		},
 		"should not be able to set patch pin without major or minor pins": {
 			containerName: "test-name",
+			controllerOpts: Options{
+				Architecture: "amd64",
+				OS: "linux",
+			},
 			annotations: map[string]string{
 				api.PinPatchAnnotationKey + "/test-name": "5",
 			},
@@ -38,6 +50,10 @@ func TestBuild(t *testing.T) {
 		},
 		"should not be able to set minor pin without major pin": {
 			containerName: "test-name",
+			controllerOpts: Options{
+				Architecture: "amd64",
+				OS: "linux",
+			},
 			annotations: map[string]string{
 				api.PinMinorAnnotationKey + "/test-name": "5",
 			},
@@ -46,6 +62,10 @@ func TestBuild(t *testing.T) {
 		},
 		"should not be able to set minor pin without major pin even with patch": {
 			containerName: "test-name",
+			controllerOpts: Options{
+				Architecture: "amd64",
+				OS: "linux",
+			},
 			annotations: map[string]string{
 				api.PinPatchAnnotationKey + "/test-name": "5",
 				api.PinMinorAnnotationKey + "/test-name": "5",
@@ -55,6 +75,10 @@ func TestBuild(t *testing.T) {
 		},
 		"cannot use sha with non sha options (regex)": {
 			containerName: "test-name",
+			controllerOpts: Options{
+				Architecture: "amd64",
+				OS: "linux",
+			},
 			annotations: map[string]string{
 				api.MatchRegexAnnotationKey + "/test-name": "5",
 				api.UseSHAAnnotationKey + "/test-name":     "true",
@@ -64,6 +88,10 @@ func TestBuild(t *testing.T) {
 		},
 		"cannot use sha with non sha options (pins)": {
 			containerName: "test-name",
+			controllerOpts: Options{
+				Architecture: "amd64",
+				OS: "linux",
+			},	
 			annotations: map[string]string{
 				api.PinMajorAnnotationKey + "/test-name": "5",
 				api.PinMinorAnnotationKey + "/test-name": "5",
@@ -74,6 +102,10 @@ func TestBuild(t *testing.T) {
 		},
 		"output options for pins and add metadata": {
 			containerName: "test-name",
+			controllerOpts: Options{
+				Architecture: "amd64",
+				OS: "linux",
+			},
 			annotations: map[string]string{
 				api.PinMajorAnnotationKey + "/test-name":    "1",
 				api.PinMinorAnnotationKey + "/test-name":    "2",
@@ -81,6 +113,8 @@ func TestBuild(t *testing.T) {
 				api.UseMetaDataAnnotationKey + "/test-name": "true",
 			},
 			expOptions: &api.Options{
+				Architecture: stringp("amd64"),
+				OS: stringp("linux"),				
 				PinMajor:    int64p(1.0),
 				PinMinor:    int64p(2.0),
 				PinPatch:    int64p(3.0),
@@ -90,11 +124,17 @@ func TestBuild(t *testing.T) {
 		},
 		"output options for override url and regex": {
 			containerName: "test-name",
+			controllerOpts: Options{
+				Architecture: "amd64",
+				OS: "linux",
+			},
 			annotations: map[string]string{
 				api.MatchRegexAnnotationKey + "/test-name":  `v1\.2\.1`,
 				api.OverrideURLAnnotationKey + "/test-name": "foo.bar.io",
 			},
 			expOptions: &api.Options{
+				Architecture: stringp("amd64"),
+				OS: stringp("linux"),				
 				MatchRegex:   stringp(`v1\.2\.1`),
 				OverrideURL:  stringp("foo.bar.io"),
 				RegexMatcher: regexp.MustCompile(`v1\.2\.1`),
@@ -103,28 +143,57 @@ func TestBuild(t *testing.T) {
 		},
 		"output options for sha": {
 			containerName: "test-name",
+			controllerOpts: Options{
+				Architecture: "amd64",
+				OS: "linux",
+			},	
 			annotations: map[string]string{
 				api.UseSHAAnnotationKey + "/test-name": "true",
 			},
 			expOptions: &api.Options{
+				Architecture: stringp("amd64"),
+				OS: stringp("linux"),				
+				UseSHA: true,
+			},
+			expErr: "",
+		},
+		"output options for arch and os": {
+			containerName: "test-name",
+			controllerOpts: Options{
+				Architecture: "armv7",
+				OS: "windows",
+			},	
+			annotations: map[string]string{
+				api.UseSHAAnnotationKey + "/test-name": "true",
+			},
+			expOptions: &api.Options{
+				Architecture: stringp("armv7"),
+				OS: stringp("windows"),				
 				UseSHA: true,
 			},
 			expErr: "",
 		},
 		"bool options that don't have 'true' and nothing": {
 			containerName: "test-name",
+			controllerOpts: Options{
+				Architecture: "amd64",
+				OS: "linux",
+			},
 			annotations: map[string]string{
 				api.UseSHAAnnotationKey + "/test-name":      "false",
 				api.UseMetaDataAnnotationKey + "/test-name": "foo",
 			},
-			expOptions: new(api.Options),
+			expOptions:&api.Options{
+				Architecture: stringp("amd64"),
+				OS: stringp("linux"),	
+			},
 			expErr:     "",
 		},
 	}
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			options, err := New(test.annotations).Options(test.containerName)
+			options, err := New(test.annotations).Options(test.containerName, test.controllerOpts)
 			if len(test.expErr) > 0 {
 				if err == nil || err.Error() != test.expErr {
 					t.Errorf("unexpected error, exp=%s got=%v",

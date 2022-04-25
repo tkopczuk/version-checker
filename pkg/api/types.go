@@ -46,7 +46,7 @@ type Options struct {
 
 	// UseSHA cannot be used with any other options
 	UseSHA bool `json:"use-sha,omitempty"`
-
+	
 	MatchRegex *string `json:"match-regex,omitempty"`
 
 	// UseMetaData defines whether tags with '-alpha', '-debian.0' etc. is
@@ -56,6 +56,9 @@ type Options struct {
 	PinMajor *int64 `json:"pin-major,omitempty"`
 	PinMinor *int64 `json:"pin-minor,omitempty"`
 	PinPatch *int64 `json:"pin-patch,omitempty"`
+
+	Architecture *string `json:"pin-architecture,omitempty"`
+	OS           *string `json:"pin-os,omitempty"`
 
 	RegexMatcher *regexp.Regexp `json:"-"`
 }

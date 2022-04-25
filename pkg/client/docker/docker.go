@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/jetstack/version-checker/pkg/api"
+	manifest "github.com/jetstack/version-checker/pkg/client/docker/manifest"
 )
 
 const (
@@ -26,6 +27,7 @@ type Options struct {
 
 type Client struct {
 	*http.Client
+	*manifest.ManifestClient
 	Options
 }
 
@@ -47,7 +49,7 @@ type Result struct {
 type Image struct {
 	Digest       string `json:"digest"`
 	OS           string `json:"os"`
-	Architecture string `json:"Architecture"`
+	Architecture string `json:"architecture"`
 }
 
 func New(ctx context.Context, opts Options) (*Client, error) {
@@ -68,9 +70,19 @@ func New(ctx context.Context, opts Options) (*Client, error) {
 		opts.Token = token
 	}
 
+	manifestClient, err := manifest.New(manifest.Options{
+		Username: opts.Username,
+		Password: opts.Password,
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to setup manifest client: %s", err)
+	}
+
 	return &Client{
 		Options: opts,
 		Client:  client,
+		ManifestClient: manifestClient,
 	}, nil
 }
 
@@ -99,15 +111,22 @@ func (c *Client) Tags(ctx context.Context, _, repo, image string) ([]api.ImageTa
 				return nil, fmt.Errorf("failed to parse image timestamp: %s", err)
 			}
 
+			compoundDigest, err := c.ManifestClient.Digest(ctx, repo, image, result.Name)
+
 			for _, image := range result.Images {
 				// Image without digest contains no real image.
 				if len(image.Digest) == 0 {
 					continue
 				}
 
+				digest := compoundDigest
+				if len(digest) == 0 {
+					digest = image.Digest
+				}
+
 				tags = append(tags, api.ImageTag{
 					Tag:          result.Name,
-					SHA:          image.Digest,
+					SHA:          digest,
 					Timestamp:    timestamp,
 					OS:           image.OS,
 					Architecture: image.Architecture,

@@ -18,6 +18,7 @@ import (
 
 	"github.com/jetstack/version-checker/pkg/client"
 	"github.com/jetstack/version-checker/pkg/controller/checker"
+	"github.com/jetstack/version-checker/pkg/controller/options"
 	"github.com/jetstack/version-checker/pkg/controller/scheduler"
 	"github.com/jetstack/version-checker/pkg/controller/search"
 	"github.com/jetstack/version-checker/pkg/metrics"
@@ -42,6 +43,8 @@ type Controller struct {
 	checker *checker.Checker
 
 	defaultTestAll bool
+
+	opts options.Options
 }
 
 func New(
@@ -51,6 +54,7 @@ func New(
 	kubeClient kubernetes.Interface,
 	log *logrus.Entry,
 	defaultTestAll bool,
+	opts options.Options,
 ) *Controller {
 	workqueue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
 	scheduledWorkQueue := scheduler.NewScheduledWorkQueue(clock.RealClock{}, workqueue.Add)
@@ -67,6 +71,7 @@ func New(
 		metrics:            metrics,
 		checker:            checker.New(search),
 		defaultTestAll:     defaultTestAll,
+		opts:               opts,
 	}
 
 	return c

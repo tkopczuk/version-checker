@@ -14,10 +14,14 @@ import (
 
 	"github.com/jetstack/version-checker/pkg/client"
 	"github.com/jetstack/version-checker/pkg/client/selfhosted"
+	controllerOptions "github.com/jetstack/version-checker/pkg/controller/options"
 )
 
 const (
 	envPrefix = "VERSION_CHECKER"
+
+	envArch            = "ARCH"
+	envOS              = "OS"
 
 	envACRUsername     = "ACR_USERNAME"
 	envACRPassword     = "ACR_PASSWORD"
@@ -58,6 +62,7 @@ type Options struct {
 
 	kubeConfigFlags *genericclioptions.ConfigFlags
 	selfhosted      selfhosted.Options
+	Controller      controllerOptions.Options
 
 	Client client.Options
 }
@@ -106,7 +111,21 @@ func (o *Options) addAppFlags(fs *pflag.FlagSet) {
 	fs.StringVarP(&o.LogLevel,
 		"log-level", "v", "info",
 		"Log level (debug, info, warn, error, fatal, panic).")
-}
+	
+	/// Arch and OS
+	fs.StringVar(&o.Controller.Architecture,
+		"arch", "",
+		fmt.Sprintf(
+			"Expected architecture (%s_%s).",
+			envPrefix, envArch,
+		))		
+		fs.StringVar(&o.Controller.OS,
+			"os", "",
+			fmt.Sprintf(
+				"Expected OS (%s_%s).",
+				envPrefix, envOS,
+			))		
+	}
 
 func (o *Options) addAuthFlags(fs *pflag.FlagSet) {
 	/// ACR
@@ -252,6 +271,7 @@ func (o *Options) complete() {
 		}
 	}
 
+	o.assignController(envs)
 	o.assignSelfhosted(envs)
 }
 
@@ -267,6 +287,30 @@ func (o *Options) assignEnv(env, key string, assign *string) bool {
 	}
 
 	return false
+}
+
+func (o *Options) assignController(envs []string) {
+	for _, opt := range []struct {
+		key    string
+		assign *string
+	} {
+		{envArch, &o.Controller.Architecture},
+		{envOS, &o.Controller.OS},
+	} {
+		for _, env := range envs {
+			if o.assignEnv(env, opt.key, opt.assign) {
+				break
+			}
+		}
+	}	
+
+	if o.Controller.Architecture == "" {
+		o.Controller.Architecture = "amd64"
+	}
+
+	if o.Controller.OS == "" {
+		o.Controller.OS = "linux"
+  }
 }
 
 func (o *Options) assignSelfhosted(envs []string) {

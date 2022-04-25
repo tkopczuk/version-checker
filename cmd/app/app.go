@@ -74,7 +74,7 @@ func NewCommand(ctx context.Context) *cobra.Command {
 			log.Infof("flag --test-all-containers=%t %s", opts.DefaultTestAll, defaultTestAllInfoMsg)
 
 			c := controller.New(opts.CacheTimeout, metrics,
-				client, kubeClient, log, opts.DefaultTestAll)
+				client, kubeClient, log, opts.DefaultTestAll, opts.Controller)
 
 			return c.Run(ctx, opts.CacheTimeout/2)
 		},
