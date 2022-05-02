@@ -108,7 +108,7 @@ func (c *Client) Tags(ctx context.Context, _, repo, image string) ([]api.ImageTa
 
 			timestamp, err := time.Parse(time.RFC3339Nano, result.Timestamp)
 			if err != nil {
-				return nil, fmt.Errorf("failed to parse image timestamp: %s", err)
+				continue
 			}
 
 			compoundDigest, err := c.ManifestClient.Digest(ctx, repo, image, result.Name)
