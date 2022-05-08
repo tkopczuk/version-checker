@@ -93,7 +93,7 @@ func (c *Client) fetchImageManifest(ctx context.Context, repo, image string, tag
 	// If a multi-arch image, call manifest endpoint
 	if tag.IsManifestList {
 		url := fmt.Sprintf(manifestURL, repo, image, tag.ManifestDigest)
-		tags, err := c.callManifests(ctx, timestamp, tag.Name, url)
+		tags, err := c.callManifests(ctx, timestamp, tag.Name, url, tag.ManifestDigest)
 		if err != nil {
 			return nil, err
 		}
@@ -117,7 +117,7 @@ func (c *Client) fetchImageManifest(ctx context.Context, repo, image string, tag
 }
 
 // callManifests endpoint on the tags image manifest
-func (c *Client) callManifests(ctx context.Context, timestamp time.Time, tag, url string) ([]api.ImageTag, error) {
+func (c *Client) callManifests(ctx context.Context, timestamp time.Time, tag, url, compoundDigest string) ([]api.ImageTag, error) {
 	var manifestResp responseManifest
 	if err := c.makeRequest(ctx, url, &manifestResp); err != nil {
 		return nil, err
@@ -138,7 +138,7 @@ func (c *Client) callManifests(ctx context.Context, timestamp time.Time, tag, ur
 	for _, manifest := range manifestData.Manifests {
 		tags = append(tags, api.ImageTag{
 			Tag:          tag,
-			SHA:          manifest.Digest,
+			SHA:          compoundDigest,
 			Timestamp:    timestamp,
 			Architecture: manifest.Platform.Architecture,
 			OS:           manifest.Platform.OS,
