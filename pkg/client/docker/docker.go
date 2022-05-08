@@ -116,10 +116,16 @@ func (c *Client) Tags(ctx context.Context, _, repo, image string) ([]api.ImageTa
 
 			timestamp, err := time.Parse(time.RFC3339Nano, result.Timestamp)
 			if err != nil {
+				fmt.Printf("Failed parsing the timestamp %v %v %v \"%v\" with %v\n", repo, image, result.Name, result.Timestamp, err)
 				continue
 			}
 
 			compoundDigest, err := c.ManifestClient.Digest(ctx, repo, image, result.Name)
+
+			if err != nil {
+				fmt.Printf("Failed getting the manifest for %v %v %v with %v\n", repo, image, result.Name, err)
+				continue
+			}
 
 			for _, image := range result.Images {
 				// Image without digest contains no real image.

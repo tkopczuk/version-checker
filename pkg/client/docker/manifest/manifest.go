@@ -114,7 +114,7 @@ func (c *ManifestClient) getAuthToken(ctx context.Context, repo, image string) (
 	if c.Options.Username != "" && c.Options.Password != "" {
 		ba := []byte(fmt.Sprintf("%s:%s", c.Options.Username, c.Options.Password))
 
-		req.Header.Set("Authorization", "JWT " + base64.StdEncoding.EncodeToString(ba))
+		req.Header.Set("Authorization", "Basic "+base64.StdEncoding.EncodeToString(ba))
 	}
 
 	req = req.WithContext(ctx)
