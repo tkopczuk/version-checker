@@ -14,6 +14,7 @@ import (
 	"github.com/jetstack/version-checker/pkg/client/gcr"
 	"github.com/jetstack/version-checker/pkg/client/quay"
 	"github.com/jetstack/version-checker/pkg/client/selfhosted"
+	"github.com/jetstack/version-checker/pkg/metrics"
 )
 
 // ImageClient represents a image registry client that can list available tags
@@ -52,19 +53,20 @@ type Options struct {
 	Selfhosted map[string]*selfhosted.Options
 }
 
-func New(ctx context.Context, log *logrus.Entry, opts Options) (*Client, error) {
-	acrClient, err := acr.New(opts.ACR)
+func New(ctx context.Context, log *logrus.Entry, m *metrics.Metrics, opts Options) (*Client, error) {
+	acrClient, err := acr.New(log, m, opts.ACR)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create acr client: %s", err)
 	}
-	dockerClient, err := docker.New(ctx, opts.Docker)
+
+	dockerClient, err := docker.New(ctx, log, m, opts.Docker)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create docker client: %s", err)
 	}
 
 	var selfhostedClients []ImageClient
 	for _, sOpts := range opts.Selfhosted {
-		sClient, err := selfhosted.New(ctx, log, sOpts)
+		sClient, err := selfhosted.New(ctx, log, m, sOpts)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create selfhosted client %q: %s",
 				sOpts.Host, err)
@@ -73,19 +75,29 @@ func New(ctx context.Context, log *logrus.Entry, opts Options) (*Client, error) 
 		selfhostedClients = append(selfhostedClients, sClient)
 	}
 
-	fallbackClient, err := selfhosted.New(ctx, log, new(selfhosted.Options))
+	fallbackClient, err := selfhosted.New(ctx, log, m, new(selfhosted.Options))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create fallback client: %s", err)
+	}
+
+	quayClient, err := quay.New(log, m, opts.Quay)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create quay client: %s", err)
+	}
+
+	gcrClient, err := gcr.New(log, m, opts.GCR)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create gcr client: %s", err)
 	}
 
 	c := &Client{
 		clients: append(
 			selfhostedClients,
 			acrClient,
-			ecr.New(opts.ECR),
+			ecr.New(log, opts.ECR),
 			dockerClient,
-			gcr.New(opts.GCR),
-			quay.New(opts.Quay),
+			gcrClient,
+			quayClient,
 		),
 		fallbackClient: fallbackClient,
 	}

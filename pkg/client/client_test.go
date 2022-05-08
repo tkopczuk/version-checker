@@ -13,10 +13,13 @@ import (
 	"github.com/jetstack/version-checker/pkg/client/gcr"
 	"github.com/jetstack/version-checker/pkg/client/quay"
 	"github.com/jetstack/version-checker/pkg/client/selfhosted"
+
+	"github.com/jetstack/version-checker/pkg/metrics"
 )
 
 func TestFromImageURL(t *testing.T) {
-	handler, err := New(context.TODO(), logrus.NewEntry(logrus.New()), Options{
+	log := logrus.NewEntry(logrus.New())
+	handler, err := New(context.TODO(), log, metrics.New(log), Options{
 		Selfhosted: map[string]*selfhosted.Options{
 			"yourdomain": {
 				Host: "https://docker.repositories.yourdomain.com",
@@ -57,11 +60,11 @@ func TestFromImageURL(t *testing.T) {
 			expHost:   "",
 			expPath:   "jetstack/joshvanl/version-checker",
 		},
-		"name with a dot should be docker":{
+		"name with a dot should be docker": {
 			url:       "dgtlmoon/changedetection.io",
 			expClient: new(docker.Client),
 			expHost:   "",
-			expPath:   "dgtlmoon/changedetection.io",			
+			expPath:   "dgtlmoon/changedetection.io",
 		},
 		"docker.com should be docker": {
 			url:       "docker.com/joshvanl/version-checker",

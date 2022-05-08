@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/sirupsen/logrus"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -27,7 +29,7 @@ type Options struct {
 	SessionToken    string
 }
 
-func New(opts Options) *Client {
+func New(log *logrus.Entry, opts Options) *Client {
 	return &Client{
 		Options:             opts,
 		cachedRegionClients: make(map[string]*ecr.ECR),

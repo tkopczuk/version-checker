@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/jetstack/version-checker/pkg/metrics"
 	"github.com/sirupsen/logrus"
 )
 
@@ -70,7 +71,9 @@ func TestIsHost(t *testing.T) {
 		Host: "https://docker.repositories.yourdomain.ext",
 	}
 
-	handler, err := New(context.TODO(), logrus.NewEntry(logrus.New()), options)
+	log := logrus.NewEntry(logrus.New())
+
+	handler, err := New(context.TODO(), log, metrics.New(log), options)
 	if err != nil {
 		t.Fatal(err)
 	}

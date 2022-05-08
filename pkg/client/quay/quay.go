@@ -7,10 +7,11 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/hashicorp/go-retryablehttp"
+	"github.com/sirupsen/logrus"
 
 	"github.com/jetstack/version-checker/pkg/api"
 	"github.com/jetstack/version-checker/pkg/client/util"
+	"github.com/jetstack/version-checker/pkg/metrics"
 )
 
 const (
@@ -23,7 +24,7 @@ type Options struct {
 }
 
 type Client struct {
-	*retryablehttp.Client
+	*http.Client
 	Options
 }
 
@@ -57,15 +58,16 @@ type responseManifestDataItem struct {
 	} `json:"platform"`
 }
 
-func New(opts Options) *Client {
-	client := retryablehttp.NewClient()
-	client.RetryMax = 10
-	client.Logger = nil
+func New(log *logrus.Entry, metrics *metrics.Metrics, opts Options) (*Client, error) {
+	client, err := metrics.GetHttpClient("quay.io")
+	if err != nil {
+		return nil, fmt.Errorf("failed creating the http client: %s", err)
+	}
 
 	return &Client{
 		Options: opts,
 		Client:  client,
-	}
+	}, nil
 }
 
 func (c *Client) Name() string {
@@ -151,7 +153,7 @@ func (c *Client) callManifests(ctx context.Context, timestamp time.Time, tag, ur
 // makeRequest will make a call and write the response to the object.
 // Implements backoff.
 func (c *Client) makeRequest(ctx context.Context, url string, obj interface{}) error {
-	req, err := retryablehttp.NewRequest(http.MethodGet, url, nil)
+	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return err
 	}

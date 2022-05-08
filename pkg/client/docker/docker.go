@@ -10,8 +10,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/sirupsen/logrus"
+
 	"github.com/jetstack/version-checker/pkg/api"
 	manifest "github.com/jetstack/version-checker/pkg/client/docker/manifest"
+	"github.com/jetstack/version-checker/pkg/metrics"
 )
 
 const (
@@ -22,6 +25,7 @@ const (
 type Options struct {
 	Username string
 	Password string
+	AuthType string
 	Token    string
 }
 
@@ -52,10 +56,13 @@ type Image struct {
 	Architecture string `json:"architecture"`
 }
 
-func New(ctx context.Context, opts Options) (*Client, error) {
-	client := &http.Client{
-		Timeout: time.Second * 5,
+func New(ctx context.Context, log *logrus.Entry, metrics *metrics.Metrics, opts Options) (*Client, error) {
+	client, err := metrics.GetHttpClient("Docker")
+	if err != nil {
+		return nil, fmt.Errorf("failed creating the http client: %s", err)
 	}
+
+	opts.AuthType = "Token"
 
 	// Setup Auth if username and password used.
 	if len(opts.Username) > 0 || len(opts.Password) > 0 {
@@ -67,6 +74,7 @@ func New(ctx context.Context, opts Options) (*Client, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to setup auth: %s", err)
 		}
+		opts.AuthType = "Bearer"
 		opts.Token = token
 	}
 
@@ -80,8 +88,8 @@ func New(ctx context.Context, opts Options) (*Client, error) {
 	}
 
 	return &Client{
-		Options: opts,
-		Client:  client,
+		Options:        opts,
+		Client:         client,
 		ManifestClient: manifestClient,
 	}, nil
 }
@@ -149,7 +157,7 @@ func (c *Client) doRequest(ctx context.Context, url string) (*TagResponse, error
 	req.URL.Scheme = "https"
 	req = req.WithContext(ctx)
 	if len(c.Token) > 0 {
-		req.Header.Add("Authorization", "Token "+c.Token)
+		req.Header.Add("Authorization", c.AuthType+" "+c.Token)
 	}
 
 	resp, err := c.Do(req)

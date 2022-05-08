@@ -10,12 +10,15 @@ import (
 	"sync"
 	"time"
 
+	"github.com/sirupsen/logrus"
+
 	"github.com/Azure/go-autorest/autorest"
 	"github.com/Azure/go-autorest/autorest/adal"
 	"github.com/dgrijalva/jwt-go"
 
 	"github.com/jetstack/version-checker/pkg/api"
 	"github.com/jetstack/version-checker/pkg/client/util"
+	"github.com/jetstack/version-checker/pkg/metrics"
 )
 
 const (
@@ -25,6 +28,8 @@ const (
 type Client struct {
 	*http.Client
 	Options
+
+	log *logrus.Entry
 
 	cacheMu         sync.Mutex
 	cachedACRClient map[string]*acrClient
@@ -53,9 +58,10 @@ type ACRManifestResponse struct {
 	} `json:"manifests"`
 }
 
-func New(opts Options) (*Client, error) {
-	client := &http.Client{
-		Timeout: time.Second * 5,
+func New(log *logrus.Entry, m *metrics.Metrics, opts Options) (*Client, error) {
+	client, err := m.GetHttpClient("ACR")
+	if err != nil {
+		return nil, fmt.Errorf("failed creating the http client: %s", err)
 	}
 
 	if len(opts.RefreshToken) > 0 &&

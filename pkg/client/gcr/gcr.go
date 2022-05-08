@@ -9,7 +9,10 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/sirupsen/logrus"
+
 	"github.com/jetstack/version-checker/pkg/api"
+	"github.com/jetstack/version-checker/pkg/metrics"
 )
 
 const (
@@ -34,13 +37,16 @@ type ManifestItem struct {
 	TimeCreated string   `json:"timeCreatedMs"`
 }
 
-func New(opts Options) *Client {
+func New(log *logrus.Entry, metrics *metrics.Metrics, opts Options) (*Client, error) {
+	client, err := metrics.GetHttpClient("GCR")
+	if err != nil {
+		return nil, fmt.Errorf("failed creating the http client: %s", err)
+	}
+
 	return &Client{
 		Options: opts,
-		Client: &http.Client{
-			Timeout: time.Second * 5,
-		},
-	}
+		Client:  client,
+	}, nil
 }
 
 func (c *Client) Name() string {

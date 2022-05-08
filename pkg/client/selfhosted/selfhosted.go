@@ -16,6 +16,7 @@ import (
 	"github.com/jetstack/version-checker/pkg/api"
 	selfhostederrors "github.com/jetstack/version-checker/pkg/client/selfhosted/errors"
 	"github.com/jetstack/version-checker/pkg/client/util"
+	"github.com/jetstack/version-checker/pkg/metrics"
 )
 
 const (
@@ -70,11 +71,14 @@ type V1Compatibility struct {
 	Created time.Time `json:"created,omitempty"`
 }
 
-func New(ctx context.Context, log *logrus.Entry, opts *Options) (*Client, error) {
+func New(ctx context.Context, log *logrus.Entry, metrics *metrics.Metrics, opts *Options) (*Client, error) {
+	httpClient, err := metrics.GetHttpClient("selfhosted_" + opts.Host)
+	if err != nil {
+		return nil, fmt.Errorf("failed creating the http client: %s", err)
+	}
+
 	client := &Client{
-		Client: &http.Client{
-			Timeout: time.Second * 10,
-		},
+		Client:  httpClient,
 		Options: opts,
 		log:     log.WithField("client", opts.Host),
 	}

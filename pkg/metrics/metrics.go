@@ -11,6 +11,8 @@ import (
 
 	"github.com/sirupsen/logrus"
 
+	gopromhttp "github.com/travelaudience/go-promhttp"
+
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
@@ -28,6 +30,8 @@ type Metrics struct {
 	// and the latest
 	containerCache map[string]cacheItem
 	mu             sync.Mutex
+
+	httpClient *gopromhttp.Client
 }
 
 type cacheItem struct {
@@ -66,11 +70,20 @@ func New(log *logrus.Entry) *Metrics {
 	registry := prometheus.NewRegistry()
 	registry.MustRegister(containerImageVersion)
 
+	httpClient := gopromhttp.Client{
+		Client: &http.Client{
+			Timeout: time.Second * 5,
+		},
+		Registerer: registry,
+		Namespace:  "version_checker",
+	}
+
 	return &Metrics{
 		log:                   log.WithField("module", "metrics"),
 		registry:              registry,
 		containerImageVersion: containerImageVersion,
 		containerCache:        make(map[string]cacheItem),
+		httpClient:            &httpClient,
 	}
 }
 
@@ -128,6 +141,10 @@ func (m *Metrics) AddImage(entry *Entry) {
 		os:             entry.OS,
 		arch:           entry.Arch,
 	}
+}
+
+func (m *Metrics) GetHttpClient(recipient string) (*http.Client, error) {
+	return m.httpClient.ForRecipient(recipient)
 }
 
 func (m *Metrics) RemoveImage(namespace, pod, container string) {
