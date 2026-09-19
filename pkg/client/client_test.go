@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"net/http"
 	"testing"
 
 	"github.com/sirupsen/logrus"
@@ -17,6 +18,32 @@ import (
 	"github.com/jetstack/version-checker/pkg/client/quay"
 	"github.com/jetstack/version-checker/pkg/client/selfhosted"
 )
+
+func TestSetDefaultTransport(t *testing.T) {
+	defaultTransport := http.DefaultTransport
+	existingTransport := http.NewFileTransport(http.Dir("."))
+	opts := Options{
+		Transport: defaultTransport,
+		Docker: docker.Options{
+			Transporter: existingTransport,
+		},
+		Selfhosted: map[string]*selfhosted.Options{
+			"default": {},
+			"custom":  {Transporter: existingTransport},
+		},
+	}
+
+	setDefaultTransport(&opts)
+
+	assert.Equal(t, existingTransport, opts.Docker.Transporter)
+	assert.Same(t, defaultTransport, opts.Quay.Transporter)
+	assert.Same(t, defaultTransport, opts.ECR.Transporter)
+	assert.Same(t, defaultTransport, opts.GHCR.Transporter)
+	assert.Same(t, defaultTransport, opts.GCR.Transporter)
+	assert.Same(t, defaultTransport, opts.OCI.Transporter)
+	assert.Same(t, defaultTransport, opts.Selfhosted["default"].Transporter)
+	assert.Equal(t, existingTransport, opts.Selfhosted["custom"].Transporter)
+}
 
 func TestFromImageURL(t *testing.T) {
 	handler, err := New(context.TODO(), logrus.NewEntry(logrus.New()), Options{

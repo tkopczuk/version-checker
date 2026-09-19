@@ -50,13 +50,7 @@ type Options struct {
 
 func New(ctx context.Context, log *logrus.Entry, opts Options) (*Client, error) {
 	log = log.WithField("component", "client")
-	// Setup Transporters for all remaining clients (if one is set)
-	if opts.Transport != nil {
-		opts.Quay.Transporter = opts.Transport
-		opts.ECR.Transporter = opts.Transport
-		opts.GHCR.Transporter = opts.Transport
-		opts.GCR.Transporter = opts.Transport
-	}
+	setDefaultTransport(&opts)
 
 	acrClient, err := acr.New(opts.ACR)
 	if err != nil {
@@ -120,6 +114,36 @@ func New(ctx context.Context, log *logrus.Entry, opts Options) (*Client, error) 
 	}
 
 	return c, nil
+}
+
+func setDefaultTransport(opts *Options) {
+	if opts.Transport == nil {
+		return
+	}
+
+	if opts.Quay.Transporter == nil {
+		opts.Quay.Transporter = opts.Transport
+	}
+	if opts.ECR.Transporter == nil {
+		opts.ECR.Transporter = opts.Transport
+	}
+	if opts.GHCR.Transporter == nil {
+		opts.GHCR.Transporter = opts.Transport
+	}
+	if opts.GCR.Transporter == nil {
+		opts.GCR.Transporter = opts.Transport
+	}
+	if opts.Docker.Transporter == nil {
+		opts.Docker.Transporter = opts.Transport
+	}
+	if opts.OCI.Transporter == nil {
+		opts.OCI.Transporter = opts.Transport
+	}
+	for _, selfhostedOpts := range opts.Selfhosted {
+		if selfhostedOpts != nil && selfhostedOpts.Transporter == nil {
+			selfhostedOpts.Transporter = opts.Transport
+		}
+	}
 }
 
 // Tags returns the full list of image tags available, for a given image URL.
