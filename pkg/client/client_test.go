@@ -63,6 +63,12 @@ func TestFromImageURL(t *testing.T) {
 			expHost:   "",
 			expPath:   "jetstack/joshvanl/version-checker",
 		},
+		"repository name containing a dot should be docker": {
+			url:       "dgtlmoon/changedetection.io",
+			expClient: new(docker.Client),
+			expHost:   "",
+			expPath:   "dgtlmoon/changedetection.io",
+		},
 		"docker.com should be docker": {
 			url:       "docker.com/joshvanl/version-checker",
 			expClient: new(docker.Client),

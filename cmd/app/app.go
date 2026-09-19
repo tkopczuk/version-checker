@@ -45,6 +45,7 @@ func NewCommand(ctx context.Context) *cobra.Command {
 				return fmt.Errorf("failed to parse --log-level %q: %s",
 					opts.LogLevel, err)
 			}
+			logrus.SetLevel(logLevel)
 
 			log := newLogger(logLevel).WithField("component", "controller")
 			ctrl.SetLogger(logrusr.New(log.WithField("controller", "manager").Logger))

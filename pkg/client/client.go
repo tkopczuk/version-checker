@@ -136,9 +136,9 @@ func (c *Client) Tags(ctx context.Context, imageURL string) ([]api.ImageTag, err
 // image URL, and the host + path to search.
 func (c *Client) fromImageURL(imageURL string) (api.ImageClient, string, string) {
 	var host, path string
+	split := strings.SplitN(imageURL, "/", 2)
 
-	if strings.Contains(imageURL, ".") || strings.Contains(imageURL, ":") {
-		split := strings.SplitN(imageURL, "/", 2)
+	if strings.Contains(split[0], ".") || strings.Contains(split[0], ":") {
 		if len(split) < 2 {
 			path = imageURL
 		} else {
