@@ -591,6 +591,27 @@ func TestIsLatestSHA(t *testing.T) {
 				ImageURL:       "docker.io",
 			},
 		},
+		"if multi-platform index SHA equal, then should be equal": {
+			imageURL:   "ghcr.io/matter-js/python-matter-server",
+			currentSHA: "sha256:6827e352011e2d8c2bde771e446fcf72acc49150ef66bad978816bac1762aad3",
+			searchResp: &api.ImageTag{
+				SHA: "sha256:6827e352011e2d8c2bde771e446fcf72acc49150ef66bad978816bac1762aad3",
+				Tag: "8.1.2",
+				Children: []*api.ImageTag{
+					{
+						SHA:          "sha256:e9f5fc49d2ac4fec1a91fb3eb1bd4555b9e39ea63db1d55b30a1ab53170c79ac",
+						OS:           "linux",
+						Architecture: "amd64",
+					},
+				},
+			},
+			expResult: &Result{
+				CurrentVersion: "sha256:6827e352011e2d8c2bde771e446fcf72acc49150ef66bad978816bac1762aad3",
+				LatestVersion:  "8.1.2@sha256:6827e352011e2d8c2bde771e446fcf72acc49150ef66bad978816bac1762aad3",
+				IsLatest:       true,
+				ImageURL:       "ghcr.io/matter-js/python-matter-server",
+			},
+		},
 		"if child SHA equal, and parent SHA empty, then should be equal": {
 			imageURL:   "docker.io",
 			currentSHA: "123",

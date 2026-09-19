@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"testing"
+	"time"
 
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
@@ -15,10 +16,48 @@ import (
 
 	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/google/go-containerregistry/pkg/registry"
+	"github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/empty"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
 	"github.com/jetstack/version-checker/pkg/api"
 )
+
+func TestImageTagFromIndexPreservesParentDigestAndPlatforms(t *testing.T) {
+	timestamp := time.Date(2026, time.September, 19, 12, 0, 0, 0, time.UTC)
+	indexDigest := v1.Hash{Algorithm: "sha256", Hex: "6827e352011e2d8c2bde771e446fcf72acc49150ef66bad978816bac1762aad3"}
+	manifests := []v1.Descriptor{
+		{
+			Digest:   v1.Hash{Algorithm: "sha256", Hex: "e9f5fc49d2ac4fec1a91fb3eb1bd4555b9e39ea63db1d55b30a1ab53170c79ac"},
+			Platform: &v1.Platform{OS: "linux", Architecture: "amd64"},
+		},
+		{
+			Digest:   v1.Hash{Algorithm: "sha256", Hex: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"},
+			Platform: &v1.Platform{OS: "linux", Architecture: "arm64"},
+		},
+	}
+
+	assert.Equal(t, api.ImageTag{
+		Tag:       "8.1.2",
+		SHA:       indexDigest.String(),
+		Timestamp: timestamp,
+		Children: []*api.ImageTag{
+			{
+				Tag:          "8.1.2",
+				SHA:          manifests[0].Digest.String(),
+				Timestamp:    timestamp,
+				OS:           "linux",
+				Architecture: "amd64",
+			},
+			{
+				Tag:          "8.1.2",
+				SHA:          manifests[1].Digest.String(),
+				Timestamp:    timestamp,
+				OS:           "linux",
+				Architecture: "arm64",
+			},
+		},
+	}, imageTagFromIndex("8.1.2", timestamp, indexDigest, manifests))
+}
 
 func TestClientTags(t *testing.T) {
 	ctx := context.Background()

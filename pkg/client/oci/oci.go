@@ -7,11 +7,13 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/sirupsen/logrus"
 
 	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/name"
+	"github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
 	"github.com/google/go-containerregistry/pkg/v1/types"
 
@@ -131,7 +133,6 @@ func (c *Client) Manifests(ctx context.Context, repo name.Repository, tags []str
 			switch manifest.MediaType {
 
 			case types.OCIImageIndex, types.DockerManifestList:
-				children := []*api.ImageTag{}
 				imgidx, err := manifest.ImageIndex()
 				if err != nil {
 					log.Errorf("getting ImageIndex: %s", err)
@@ -142,14 +143,7 @@ func (c *Client) Manifests(ctx context.Context, repo name.Repository, tags []str
 					log.Errorf("getting IndexManifest: %s", err)
 					return
 				}
-				for _, img := range idxman.Manifests {
-
-					children = append(children, &api.ImageTag{
-						Tag: tag,
-						SHA: img.Digest.String(),
-					})
-				}
-				baseTag.Children = children
+				baseTag = imageTagFromIndex(tag, ts, manifest.Digest, idxman.Manifests)
 
 			case types.OCIManifestSchema1, types.DockerManifestSchema2:
 				img, err := manifest.Image()
@@ -173,6 +167,28 @@ func (c *Client) Manifests(ctx context.Context, repo name.Repository, tags []str
 	wg.Wait()
 
 	return fulltags, err
+}
+
+func imageTagFromIndex(tag string, timestamp time.Time, digest v1.Hash, manifests []v1.Descriptor) api.ImageTag {
+	imageTag := api.ImageTag{
+		Tag:       tag,
+		SHA:       digest.String(),
+		Timestamp: timestamp,
+		Children:  make([]*api.ImageTag, 0, len(manifests)),
+	}
+	for _, manifest := range manifests {
+		child := &api.ImageTag{
+			Tag:       tag,
+			SHA:       manifest.Digest.String(),
+			Timestamp: timestamp,
+		}
+		if manifest.Platform != nil {
+			child.OS = api.OS(manifest.Platform.OS)
+			child.Architecture = api.Architecture(manifest.Platform.Architecture)
+		}
+		imageTag.Children = append(imageTag.Children, child)
+	}
+	return imageTag
 }
 
 // IsHost always returns true because it supports any host
