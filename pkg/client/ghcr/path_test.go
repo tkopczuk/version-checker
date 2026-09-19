@@ -39,6 +39,10 @@ func TestIsHost(t *testing.T) {
 			host:  "ghcr.io",
 			expIs: true,
 		},
+		"ghcr.io without a token should be true": {
+			host:  "ghcr.io",
+			expIs: true,
+		},
 		"gcr.io with random sub domains should be false": {
 			token: "test-token",
 			host:  "ghcr.gcr.io",
@@ -80,12 +84,9 @@ func TestIsHost(t *testing.T) {
 		},
 	}
 
-	handler := new(Client)
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			if test.token != "" {
-				handler.opts.Token = test.token
-			}
+			handler := &Client{opts: Options{Token: test.token}}
 			if test.customhost != nil {
 				handler.opts.Hostname = *test.customhost
 			}
@@ -128,12 +129,11 @@ func TestRepoImage(t *testing.T) {
 		},
 	}
 
-	handler := new(Client)
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			handler.opts.Token = "fake-token"
+			handler := new(Client)
 			repo, image := handler.RepoImageFromPath(test.path)
-			if repo != test.expRepo && image != test.expImage {
+			if repo != test.expRepo || image != test.expImage {
 				t.Errorf("%s: unexpected repo/image, exp=%s/%s got=%s/%s",
 					test.path, test.expRepo, test.expImage, repo, image)
 			}

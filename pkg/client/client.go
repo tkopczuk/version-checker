@@ -102,7 +102,7 @@ func New(ctx context.Context, log *logrus.Entry, opts Options) (*Client, error) 
 			ecr.New(opts.ECR),
 			dockerClient,
 			gcr.New(opts.GCR),
-			ghcr.New(opts.GHCR),
+			ghcr.New(opts.GHCR, log),
 			quay.New(opts.Quay, log),
 		),
 		fallbackClient: fallbackClient,

@@ -12,11 +12,6 @@ const (
 var HostReg = regexp.MustCompile(HostRegTempl)
 
 func (c *Client) IsHost(host string) bool {
-	// Package API requires Authentication
-	// This forces the Client to use the fallback method
-	if c.opts.Token == "" {
-		return false
-	}
 	// If we're using a custom hostname.
 	if c.opts.Hostname != "" && c.opts.Hostname == host {
 		return true

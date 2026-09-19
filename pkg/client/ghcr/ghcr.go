@@ -2,15 +2,20 @@ package ghcr
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 
 	"github.com/jetstack/version-checker/pkg/api"
+	"github.com/jetstack/version-checker/pkg/client/oci"
 
 	"github.com/gofri/go-github-ratelimit/github_ratelimit"
+	registrytransport "github.com/google/go-containerregistry/pkg/v1/remote/transport"
 	"github.com/google/go-github/v70/github"
+	"github.com/sirupsen/logrus"
 )
 
 // Ensure that we are an ImageClient
@@ -23,12 +28,18 @@ type Options struct {
 }
 
 type Client struct {
-	client     *github.Client
-	ownerTypes map[string]string
-	opts       Options
+	client       *github.Client
+	anonymous    tagLister
+	ownerTypes   map[string]string
+	ownerTypesMu sync.RWMutex
+	opts         Options
 }
 
-func New(opts Options) *Client {
+type tagLister interface {
+	Tags(context.Context, string, string, string) ([]api.ImageTag, error)
+}
+
+func New(opts Options, logger ...*logrus.Entry) *Client {
 	rateLimitDetection := func(ctx *github_ratelimit.CallbackContext) {
 		fmt.Printf("Hit Github Rate Limit, sleeping for %v", ctx.TotalSleepTime)
 	}
@@ -45,9 +56,18 @@ func New(opts Options) *Client {
 			panic(fmt.Errorf("failed setting enterprise URLs: %w", err))
 		}
 	}
+	log := logrus.NewEntry(logrus.StandardLogger())
+	if len(logger) > 0 && logger[0] != nil {
+		log = logger[0]
+	}
+	anonymous, err := oci.New(&oci.Options{Transporter: opts.Transporter}, log)
+	if err != nil {
+		panic(fmt.Errorf("failed creating anonymous GHCR client: %w", err))
+	}
 
 	return &Client{
 		client:     client,
+		anonymous:  anonymous,
 		opts:       opts,
 		ownerTypes: map[string]string{},
 	}
@@ -57,7 +77,20 @@ func (c *Client) Name() string {
 	return "ghcr"
 }
 
-func (c *Client) Tags(ctx context.Context, _, owner, repo string) ([]api.ImageTag, error) {
+func (c *Client) Tags(ctx context.Context, host, owner, repo string) ([]api.ImageTag, error) {
+	if c.opts.Token == "" {
+		tags, err := c.anonymous.Tags(ctx, host, owner, repo)
+		if err != nil {
+			var registryErr *registrytransport.Error
+			if errors.As(err, &registryErr) {
+				return nil, fmt.Errorf("listing anonymous GHCR tags for %s/%s returned %d %s: %w",
+					owner, repo, registryErr.StatusCode, http.StatusText(registryErr.StatusCode), err)
+			}
+			return nil, fmt.Errorf("listing anonymous GHCR tags for %s/%s: %w", owner, repo, err)
+		}
+		return tags, nil
+	}
+
 	// Determine the correct function to get all versions based on the owner type
 	getAllVersions, repo, err := c.determineGetAllVersionsFunc(ctx, owner, repo)
 	if err != nil {
@@ -149,16 +182,22 @@ func (c *Client) extractImageTags(versions []*github.PackageVersion) []api.Image
 }
 
 func (c *Client) ownerType(ctx context.Context, owner string) (string, error) {
+	c.ownerTypesMu.RLock()
 	if ownerType, ok := c.ownerTypes[owner]; ok {
+		c.ownerTypesMu.RUnlock()
 		return ownerType, nil
 	}
+	c.ownerTypesMu.RUnlock()
+
 	user, _, err := c.client.Users.Get(ctx, owner)
 	if err != nil {
 		return "", fmt.Errorf("fetching user: %w", err)
 	}
 	ownerType := strings.ToLower(user.GetType())
 
+	c.ownerTypesMu.Lock()
 	c.ownerTypes[owner] = ownerType
+	c.ownerTypesMu.Unlock()
 
 	return ownerType, nil
 }

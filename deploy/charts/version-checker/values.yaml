@@ -86,7 +86,7 @@ gcr:
 
 # GitHub Container Registry Credentials Configuration
 ghcr:
-  # -- (string) Personal Access token for read access to GHCR releases
+  # -- (string) Optional classic Personal Access Token for private GHCR packages. Public packages use anonymous registry authentication.
   token:
   # -- (string) Hostname for Github Enterprise to override the default ghcr domains.
   hostname:
