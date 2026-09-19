@@ -84,6 +84,93 @@ func TestManifestDigest(t *testing.T) {
 	assert.Equal(t, 2, requests)
 }
 
+func TestDoRequestRefreshesExpiredToken(t *testing.T) {
+	tagsRequests := 0
+	loginRequests := 0
+	client := &Client{
+		Client: &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			switch req.URL.String() {
+			case "https://registry.hub.docker.com/v2/repositories/testrepo/testimage/tags":
+				tagsRequests++
+				if tagsRequests == 1 {
+					assert.Equal(t, "Bearer expired-token", req.Header.Get("Authorization"))
+					return &http.Response{
+						StatusCode: http.StatusUnauthorized,
+						Status:     "401 Unauthorized",
+						Header:     make(http.Header),
+						Body:       io.NopCloser(strings.NewReader(`{"detail":"token expired"}`)),
+						Request:    req,
+					}, nil
+				}
+
+				assert.Equal(t, "Bearer refreshed-token", req.Header.Get("Authorization"))
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Status:     "200 OK",
+					Header:     make(http.Header),
+					Body:       io.NopCloser(strings.NewReader(`{"results":[]}`)),
+					Request:    req,
+				}, nil
+
+			case loginURL:
+				loginRequests++
+				assert.Equal(t, http.MethodPost, req.Method)
+				body, err := io.ReadAll(req.Body)
+				require.NoError(t, err)
+				assert.JSONEq(t, `{"username":"testuser","password":"testpassword"}`, string(body))
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Status:     "200 OK",
+					Header:     make(http.Header),
+					Body:       io.NopCloser(strings.NewReader(`{"token":"refreshed-token"}`)),
+					Request:    req,
+				}, nil
+
+			default:
+				t.Fatalf("unexpected request URL %q", req.URL.String())
+				return nil, nil
+			}
+		})},
+		Options: Options{
+			Username: "testuser",
+			Password: "testpassword",
+			Token:    "expired-token",
+		},
+		log: logrus.NewEntry(logrus.New()),
+	}
+
+	response, err := client.doRequest(context.Background(),
+		"https://registry.hub.docker.com/v2/repositories/testrepo/testimage/tags")
+	require.NoError(t, err)
+	assert.Empty(t, response.Results)
+	assert.Equal(t, 2, tagsRequests)
+	assert.Equal(t, 1, loginRequests)
+	assert.Equal(t, "refreshed-token", client.authToken())
+}
+
+func TestDoRequestReportsHTTPStatus(t *testing.T) {
+	client := &Client{
+		Client: &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusUnauthorized,
+				Status:     "401 Unauthorized",
+				Header:     make(http.Header),
+				Body:       io.NopCloser(strings.NewReader(`{"detail":"access denied"}`)),
+				Request:    req,
+			}, nil
+		})},
+		Options: Options{Token: "configured-token"},
+		log:     logrus.NewEntry(logrus.New()),
+	}
+
+	response, err := client.doRequest(context.Background(),
+		"https://registry.hub.docker.com/v2/repositories/testrepo/testimage/tags")
+	assert.Nil(t, response)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "Docker Hub tags request returned 401 Unauthorized")
+	assert.Contains(t, err.Error(), "access denied")
+}
+
 func TestTags(t *testing.T) {
 	log := logrus.NewEntry(logrus.New())
 	ctx := context.Background()
@@ -206,6 +293,6 @@ func TestTags(t *testing.T) {
 		tags, err := client.Tags(ctx, "NOT USED!", "testrepo", "testimage")
 		assert.Nil(t, tags)
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "unexpected image")
+		assert.Contains(t, err.Error(), "Docker Hub tags request returned 404 Not Found")
 	})
 }

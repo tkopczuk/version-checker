@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"golang.org/x/time/rate"
@@ -55,6 +56,7 @@ type Client struct {
 
 	log     *logrus.Entry
 	limiter *rate.Limiter
+	authMu  sync.RWMutex
 }
 
 func New(opts Options, log *logrus.Entry) (*Client, error) {
@@ -259,27 +261,32 @@ func (c *Client) registryToken(ctx context.Context, repo, image string) (string,
 }
 
 func (c *Client) doRequest(ctx context.Context, url string) (*TagResponse, error) {
-	req, err := http.NewRequest(http.MethodGet, url, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	req.URL.Scheme = "https"
-	req = req.WithContext(ctx)
-	if len(c.Token) > 0 {
-		req.Header.Add("Authorization", "Bearer "+c.Token)
-	}
-	req.Header.Set("User-Agent", "version-checker/docker")
-
-	resp, err := c.Do(req)
+	token := c.authToken()
+	resp, err := c.doTagsRequest(ctx, url, token)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get %q image: %s", c.Name(), err)
+	}
+
+	if resp.StatusCode == http.StatusUnauthorized && (c.Username != "" || c.Password != "") {
+		_ = resp.Body.Close()
+
+		if err := c.refreshToken(ctx, token); err != nil {
+			return nil, fmt.Errorf("failed to refresh Docker Hub token: %w", err)
+		}
+
+		resp, err = c.doTagsRequest(ctx, url, c.authToken())
+		if err != nil {
+			return nil, fmt.Errorf("failed to retry %q image request: %s", c.Name(), err)
+		}
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
+	}
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		return nil, fmt.Errorf("Docker Hub tags request returned %s: %s", resp.Status, strings.TrimSpace(string(body)))
 	}
 
 	response := new(TagResponse)
@@ -288,6 +295,47 @@ func (c *Client) doRequest(ctx context.Context, url string) (*TagResponse, error
 	}
 
 	return response, nil
+}
+
+func (c *Client) doTagsRequest(ctx context.Context, url, token string) (*http.Response, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	req.URL.Scheme = "https"
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+	req.Header.Set("User-Agent", "version-checker/docker")
+
+	return c.Do(req)
+}
+
+func (c *Client) authToken() string {
+	c.authMu.RLock()
+	defer c.authMu.RUnlock()
+
+	return c.Token
+}
+
+func (c *Client) refreshToken(ctx context.Context, expiredToken string) error {
+	c.authMu.Lock()
+	defer c.authMu.Unlock()
+
+	// Another request may already have refreshed the shared token while this
+	// request was waiting for the lock.
+	if c.Token != expiredToken {
+		return nil
+	}
+
+	token, err := basicAuthSetup(ctx, c.Client, c.Options)
+	if err != nil {
+		return err
+	}
+	c.Token = token
+
+	return nil
 }
 
 func basicAuthSetup(ctx context.Context, client *http.Client, opts Options) (string, error) {
