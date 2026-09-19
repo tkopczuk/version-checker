@@ -23,7 +23,7 @@ verify: test build ## tests and builds version-checker
 
 image: ## build docker image
 	GOARCH=$(ARCH) GOOS=linux CGO_ENABLED=0 go build -o ./bin/version-checker-linux ./cmd/.
-	docker buildx build --platform $(DOCKER_ARCH) -t tomekkopczuk/version-checker:v0.11.1 . --push
+	docker buildx build --platform $(DOCKER_ARCH) -t tomekkopczuk/version-checker:v0.11.2 . --push
 
 clean: ## clean up created files
 	rm -rf \
