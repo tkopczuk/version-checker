@@ -187,6 +187,41 @@ func TestComplete(t *testing.T) {
 	}
 }
 
+func TestCompletePlatform(t *testing.T) {
+	t.Run("defaults", func(t *testing.T) {
+		t.Setenv("VERSION_CHECKER_ARCH", "")
+		t.Setenv("VERSION_CHECKER_OS", "")
+
+		o := new(Options)
+		o.complete()
+
+		assert.Equal(t, "amd64", o.Architecture)
+		assert.Equal(t, "linux", o.OS)
+	})
+
+	t.Run("environment", func(t *testing.T) {
+		t.Setenv("VERSION_CHECKER_ARCH", "arm64")
+		t.Setenv("VERSION_CHECKER_OS", "windows")
+
+		o := new(Options)
+		o.complete()
+
+		assert.Equal(t, "arm64", o.Architecture)
+		assert.Equal(t, "windows", o.OS)
+	})
+
+	t.Run("flags take precedence", func(t *testing.T) {
+		t.Setenv("VERSION_CHECKER_ARCH", "arm64")
+		t.Setenv("VERSION_CHECKER_OS", "windows")
+
+		o := &Options{Architecture: "s390x", OS: "linux"}
+		o.complete()
+
+		assert.Equal(t, "s390x", o.Architecture)
+		assert.Equal(t, "linux", o.OS)
+	})
+}
+
 func TestInvalidSelfhostedPanic(t *testing.T) {
 	tests := map[string]struct {
 		envs []string

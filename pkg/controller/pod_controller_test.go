@@ -22,6 +22,7 @@ import (
 
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
+	"github.com/jetstack/version-checker/pkg/api"
 	"github.com/jetstack/version-checker/pkg/client"
 	"github.com/jetstack/version-checker/pkg/metrics"
 )
@@ -41,10 +42,12 @@ func TestNewController(t *testing.T) {
 	)
 	imageClient := &client.Client{}
 
-	controller := NewPodReconciler(5*time.Minute, metrics, imageClient, kubeClient, testLogger, time.Hour, true)
+	controller := NewPodReconciler(5*time.Minute, metrics, imageClient, kubeClient, testLogger, time.Hour, true,
+		api.Platform{OS: "linux", Architecture: "amd64"})
 
 	assert.NotNil(t, controller)
 	assert.Equal(t, controller.defaultTestAll, true)
+	assert.Equal(t, api.Platform{OS: "linux", Architecture: "amd64"}, controller.platform)
 	assert.Equal(t, controller.Client, kubeClient)
 	assert.NotNil(t, controller.VersionChecker)
 }
@@ -86,7 +89,8 @@ func TestReconcile(t *testing.T) {
 				kubeClient,
 			)
 
-			controller := NewPodReconciler(5*time.Minute, metrics, imageClient, kubeClient, testLogger, 5*time.Minute, true)
+			controller := NewPodReconciler(5*time.Minute, metrics, imageClient, kubeClient, testLogger, 5*time.Minute, true,
+				api.Platform{OS: "linux", Architecture: "amd64"})
 
 			ctx := context.Background()
 
@@ -123,7 +127,8 @@ func TestSetupWithManager(t *testing.T) {
 		kubeClient,
 	)
 	imageClient := &client.Client{}
-	controller := NewPodReconciler(5*time.Minute, metrics, imageClient, kubeClient, testLogger, time.Hour, true)
+	controller := NewPodReconciler(5*time.Minute, metrics, imageClient, kubeClient, testLogger, time.Hour, true,
+		api.Platform{OS: "linux", Architecture: "amd64"})
 
 	mgr, err := manager.New(&rest.Config{}, manager.Options{LeaderElectionConfig: nil})
 	require.NoError(t, err)

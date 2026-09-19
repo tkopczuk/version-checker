@@ -119,6 +119,10 @@ func NewCommand(ctx context.Context) *cobra.Command {
 				log,
 				opts.RequeueDuration,
 				opts.DefaultTestAll,
+				api.Platform{
+					Architecture: api.Architecture(opts.Architecture),
+					OS:           api.OS(opts.OS),
+				},
 			)
 			if err := podController.SetupWithManager(mgr); err != nil {
 				return err

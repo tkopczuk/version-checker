@@ -20,6 +20,8 @@ import (
 
 const (
 	envPrefix = "VERSION_CHECKER"
+	envArch   = "ARCH"
+	envOS     = "OS"
 
 	envACRUsername     = "ACR_USERNAME"
 	envACRPassword     = "ACR_PASSWORD"      // #nosec G101
@@ -66,6 +68,8 @@ var (
 type Options struct {
 	MetricsServingAddress string
 	PprofBindAddress      string
+	Architecture          string
+	OS                    string
 
 	DefaultTestAll bool
 	LogLevel       string
@@ -117,6 +121,14 @@ func (o *Options) addFlags(cmd *cobra.Command) {
 }
 
 func (o *Options) addAppFlags(fs *pflag.FlagSet) {
+	fs.StringVar(&o.Architecture,
+		"arch", "",
+		fmt.Sprintf("Expected image architecture (%s_%s).", envPrefix, envArch))
+
+	fs.StringVar(&o.OS,
+		"os", "",
+		fmt.Sprintf("Expected image operating system (%s_%s).", envPrefix, envOS))
+
 	fs.StringVarP(&o.MetricsServingAddress,
 		"metrics-serving-address", "m", "0.0.0.0:8080",
 		"Address to serve metrics on at the /metrics path.")
@@ -330,6 +342,9 @@ func (o *Options) complete() {
 		key    string
 		assign *string
 	}{
+		{envArch, &o.Architecture},
+		{envOS, &o.OS},
+
 		{envACRUsername, &o.Client.ACR.Username},
 		{envACRPassword, &o.Client.ACR.Password},
 		{envACRRefreshToken, &o.Client.ACR.RefreshToken},
@@ -356,6 +371,13 @@ func (o *Options) complete() {
 				break
 			}
 		}
+	}
+
+	if o.Architecture == "" {
+		o.Architecture = "amd64"
+	}
+	if o.OS == "" {
+		o.OS = "linux"
 	}
 
 	o.assignSelfhosted(envs)

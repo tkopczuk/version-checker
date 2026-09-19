@@ -59,6 +59,12 @@ func (c *PodReconciler) syncContainer(ctx context.Context,
 		return fmt.Errorf("failed to build options from annotations for %q: %s",
 			container.Name, err)
 	}
+	if c.platform.Architecture != "" {
+		opts.Architecture = &c.platform.Architecture
+	}
+	if c.platform.OS != "" {
+		opts.OS = &c.platform.OS
+	}
 
 	log = log.WithField("container", container.Name)
 	log.Debug("processing container image")

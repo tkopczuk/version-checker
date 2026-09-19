@@ -7,6 +7,9 @@ import "regexp"
 type Options struct {
 	OverrideURL *string `json:"override-url,omitempty"`
 
+	Architecture *Architecture `json:"pin-architecture,omitempty"`
+	OS           *OS           `json:"pin-os,omitempty"`
+
 	MatchRegex *string `json:"match-regex,omitempty"`
 
 	PinMajor *int64 `json:"pin-major,omitempty"`

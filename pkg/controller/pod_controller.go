@@ -15,6 +15,7 @@ import (
 
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
+	"github.com/jetstack/version-checker/pkg/api"
 	"github.com/jetstack/version-checker/pkg/client"
 	"github.com/jetstack/version-checker/pkg/controller/checker"
 	"github.com/jetstack/version-checker/pkg/controller/search"
@@ -36,6 +37,7 @@ type PodReconciler struct {
 	RequeueDuration time.Duration // Configurable reschedule duration
 
 	defaultTestAll bool
+	platform       api.Platform
 }
 
 func NewPodReconciler(
@@ -46,6 +48,7 @@ func NewPodReconciler(
 	log *logrus.Entry,
 	requeueDuration time.Duration,
 	defaultTestAll bool,
+	platform api.Platform,
 ) *PodReconciler {
 	log = log.WithField("controller", "pod")
 	versionGetter := version.New(log, imageClient, cacheTimeout)
@@ -58,6 +61,7 @@ func NewPodReconciler(
 		VersionChecker:  checker.New(search),
 		RequeueDuration: requeueDuration,
 		defaultTestAll:  defaultTestAll,
+		platform:        platform,
 	}
 }
 

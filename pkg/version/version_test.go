@@ -24,6 +24,9 @@ func parseTime(t string) time.Time {
 }
 
 func TestLatestSemver(t *testing.T) {
+	linux := api.OS("linux")
+	amd64 := api.Architecture("amd64")
+
 	// Ideal Set of Tags
 	tags := []api.ImageTag{
 		{Tag: "v1.0.0", Timestamp: parseTime("2023-06-01T00:00:00Z")},
@@ -209,6 +212,15 @@ func TestLatestSemver(t *testing.T) {
 			tags:     alphaBetaTags,
 			expected: "v1.1.1",
 		},
+		{
+			name: "Configured platform",
+			opts: &api.Options{OS: &linux, Architecture: &amd64},
+			tags: []api.ImageTag{
+				{Tag: "v1.0.0", Children: []*api.ImageTag{{OS: "linux", Architecture: "amd64", SHA: "sha256:amd64"}}},
+				{Tag: "v2.0.0", Children: []*api.ImageTag{{OS: "linux", Architecture: "arm64", SHA: "sha256:arm64"}}},
+			},
+			expected: "v1.0.0",
+		},
 	}
 
 	for _, tt := range tests {
@@ -225,6 +237,9 @@ func TestLatestSemver(t *testing.T) {
 }
 
 func TestLatestSHA(t *testing.T) {
+	linux := api.OS("linux")
+	amd64 := api.Architecture("amd64")
+
 	tests := []struct {
 		name        string
 		tags        []api.ImageTag
@@ -308,6 +323,25 @@ func TestLatestSHA(t *testing.T) {
 				{SHA: "sha3", Timestamp: time.Date(2022, time.January, 1, 0, 0, 0, 0, time.UTC)},
 			},
 			expectedSHA: strPtr("sha1"),
+		},
+		{
+			name: "Configured platform preserves compound digest",
+			tags: []api.ImageTag{
+				{
+					Tag:       "older",
+					SHA:       "sha256:compound-amd64",
+					Timestamp: time.Date(2022, time.January, 1, 0, 0, 0, 0, time.UTC),
+					Children:  []*api.ImageTag{{OS: "linux", Architecture: "amd64", SHA: "sha256:amd64"}},
+				},
+				{
+					Tag:       "newer",
+					SHA:       "sha256:compound-arm64",
+					Timestamp: time.Date(2023, time.January, 1, 0, 0, 0, 0, time.UTC),
+					Children:  []*api.ImageTag{{OS: "linux", Architecture: "arm64", SHA: "sha256:arm64"}},
+				},
+			},
+			options:     &api.Options{OS: &linux, Architecture: &amd64},
+			expectedSHA: strPtr("sha256:compound-amd64"),
 		},
 	}
 

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -31,9 +32,15 @@ const (
 )
 
 const (
-	loginURL  = "https://hub.docker.com/v2/users/login/"
-	lookupURL = "https://registry.hub.docker.com/v2/repositories/%s/%s/tags?page_size=100"
+	loginURL    = "https://hub.docker.com/v2/users/login/"
+	lookupURL   = "https://registry.hub.docker.com/v2/repositories/%s/%s/tags?page_size=100"
+	tokenURL    = "https://auth.docker.io/token"
+	manifestURL = "https://registry.hub.docker.com/v2/%s/%s/manifests/%s"
 )
+
+const manifestAccept = "application/vnd.oci.image.index.v1+json, " +
+	"application/vnd.docker.distribution.manifest.list.v2+json, " +
+	"application/vnd.docker.distribution.manifest.v2+json"
 
 type Options struct {
 	Transporter http.RoundTripper
@@ -147,6 +154,19 @@ func (c *Client) Tags(ctx context.Context, _, repo, image string) ([]api.ImageTa
 				})
 			}
 
+			// Docker Hub omits the parent digest for Docker v2 manifest lists.
+			// Fetch it from the registry so SHA comparisons track the compound
+			// manifest rather than an arbitrary platform child.
+			if tag.SHA == "" && len(tag.Children) > 1 {
+				digest, digestErr := c.manifestDigest(ctx, repo, image, result.Name)
+				if digestErr != nil {
+					c.log.WithError(digestErr).WithField("tag", result.Name).
+						Warn("failed to fetch Docker manifest digest")
+				} else {
+					tag.SHA = digest
+				}
+			}
+
 			// If we only have one child, and it has a SHA, then lets use that in the parent
 			if tag.SHA == "" && len(tag.Children) == 1 && tag.Children[0].SHA != "" {
 				tag.SHA = tag.Children[0].SHA
@@ -160,6 +180,82 @@ func (c *Client) Tags(ctx context.Context, _, repo, image string) ([]api.ImageTa
 	}
 
 	return tags, nil
+}
+
+func (c *Client) manifestDigest(ctx context.Context, repo, image, tag string) (string, error) {
+	token, err := c.registryToken(ctx, repo, image)
+	if err != nil {
+		return "", err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodHead,
+		fmt.Sprintf(manifestURL, repo, image, tag), nil)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Accept", manifestAccept)
+	req.Header.Set("User-Agent", "version-checker/docker")
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+
+	resp, err := c.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("failed to get Docker manifest: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("registry manifest request returned %s", resp.Status)
+	}
+
+	digest := resp.Header.Get("Docker-Content-Digest")
+	if digest == "" {
+		return "", errors.New("registry manifest response had no Docker-Content-Digest header")
+	}
+
+	return digest, nil
+}
+
+func (c *Client) registryToken(ctx context.Context, repo, image string) (string, error) {
+	u, err := url.Parse(tokenURL)
+	if err != nil {
+		return "", err
+	}
+	query := u.Query()
+	query.Set("service", "registry.docker.io")
+	query.Set("scope", fmt.Sprintf("repository:%s/%s:pull", repo, image))
+	u.RawQuery = query.Encode()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("User-Agent", "version-checker/docker")
+	if c.Username != "" && c.Password != "" {
+		req.SetBasicAuth(c.Username, c.Password)
+	}
+
+	resp, err := c.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("failed to get Docker registry token: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("Docker registry token request returned %s: %s", resp.Status, body)
+	}
+
+	response := new(AuthResponse)
+	if err := json.Unmarshal(body, response); err != nil {
+		return "", fmt.Errorf("unexpected Docker registry token response: %s", body)
+	}
+
+	return response.Token, nil
 }
 
 func (c *Client) doRequest(ctx context.Context, url string) (*TagResponse, error) {
